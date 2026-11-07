@@ -1,0 +1,27 @@
+name: Release
+
+# The Marketplace installs a release by its tag, and Home Assistant shows the manifest's version.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: The tag matches the manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(jq -r .version custom_components/voxprint/manifest.json)
+          if [ "$version" != "$TAG" ]; then
+            echo "::error::manifest.json says $version, the release tag is $TAG"
+            exit 1
+          fi

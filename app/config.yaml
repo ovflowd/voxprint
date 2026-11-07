@@ -1,0 +1,19 @@
+# https://contributors.home-assistant.io/apps/reference/configuration/
+name: Voxprint
+version: "0.1.0"
+slug: voxprint
+description: Turns one utterance into a speaker embedding for the Voxprint integration. Keeps nothing.
+url: https://github.com/ovflowd/voxprint
+arch:
+  - aarch64
+  - amd64
+image: ghcr.io/ovflowd/voxprint
+stage: experimental
+# No host ports: Home Assistant reaches the app on the internal network, by its hostname.
+init: false
+backup_exclude:
+  - "*"
+options:
+  log_level: info
+schema:
+  log_level: list(debug|info|warning|error)

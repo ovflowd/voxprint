@@ -1,0 +1,46 @@
+name: Bug report
+description: Something does not work as the documentation says
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never attach a recording of someone's voice, or a file from `.storage`. Names in the speaker
+        sensor's attributes can be replaced with `<speaker 1>`; the diagnostics already leave them out.
+  - type: input
+    id: versions
+    attributes:
+      label: Voxprint integration and app versions
+      placeholder: integration 0.1.0, app 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: home-assistant
+    attributes:
+      label: Home Assistant version and installation type
+      placeholder: 2026.11.0, Home Assistant OS on a Raspberry Pi 5
+    validations:
+      required: true
+  - type: input
+    id: assist
+    attributes:
+      label: Satellite and speech-to-text engine
+      placeholder: Home Assistant Voice PE, Home Assistant Cloud
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: state
+    attributes:
+      label: The speaker sensor's attributes after the utterance
+      description: From Developer tools, States.
+      render: yaml
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics and logs
+      description: Download the diagnostics from the integration's page, and add the app's log if it is involved.

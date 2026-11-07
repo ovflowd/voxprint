@@ -1,0 +1,6 @@
+configuration:
+  log_level:
+    name: Log level
+    description: >-
+      How much the app logs. At debug it logs one line per utterance (its length and how long the
+      embedding took), never the audio or the result.

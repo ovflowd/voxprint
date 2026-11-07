@@ -1,0 +1,40 @@
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      # Everything here is for development, and pytest-homeassistant pins Home Assistant itself, so one
+      # pull request moves them together.
+      dev:
+        patterns:
+          - "*"
+    # Pinned to what Home Assistant itself pins, for the version pytest-homeassistant installs. They move
+    # with pytest-homeassistant, by hand, not on their own.
+    ignore:
+      - dependency-name: aiohasupervisor
+      - dependency-name: gazetteer-matcher
+      - dependency-name: ha-ffmpeg
+      - dependency-name: hassil
+      - dependency-name: home-assistant-intents
+      - dependency-name: mutagen
+      - dependency-name: pymicro-vad
+      - dependency-name: pyspeex-noise
+  - package-ecosystem: uv
+    directory: /app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      dev:
+        dependency-type: development
+  - package-ecosystem: docker
+    directory: /app
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

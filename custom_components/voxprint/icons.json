@@ -1,0 +1,25 @@
+{
+  "entity": {
+    "button": {
+      "reset_voiceprint": {
+        "default": "mdi:account-voice-off"
+      }
+    },
+    "sensor": {
+      "enrolled": {
+        "default": "mdi:counter"
+      },
+      "speaker": {
+        "default": "mdi:account-voice"
+      }
+    },
+    "switch": {
+      "enrollment": {
+        "default": "mdi:microphone-plus",
+        "state": {
+          "off": "mdi:microphone-off"
+        }
+      }
+    }
+  }
+}
