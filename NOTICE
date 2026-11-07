@@ -1,0 +1,32 @@
+Voxprint
+Copyright (c) 2026 Claudio Wunder. MIT License, see LICENSE.
+
+Voxprint contains no model weights. The app's image downloads one model when it is
+built, checks it against a pinned SHA-256 (app/fetch_model.py) and uses it unmodified:
+
+  WeSpeaker ResNet34-LM, trained on VoxCeleb
+  File:    wespeaker_en_voxceleb_resnet34_LM.onnx
+  Source:  https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models
+  License: Creative Commons Attribution 4.0 International (CC BY 4.0),
+           https://creativecommons.org/licenses/by/4.0/
+           WeSpeaker's pretrained models follow the license of their training data,
+           and VoxCeleb is licensed CC BY 4.0
+           (https://github.com/wenet-e2e/wespeaker/blob/master/docs/pretrained.md).
+
+  WeSpeaker: Hongji Wang, Chengdong Liang, Shuai Wang, Zhengyang Chen, Binbin Zhang,
+  Xu Xiang, Yanlei Deng and Yanmin Qian, "WeSpeaker: A Research and Production
+  oriented Speaker Embedding Learning Toolkit", ICASSP 2023; Shuai Wang et al.,
+  "Advancing speaker embedding learning: Wespeaker toolkit for research and
+  production", Speech Communication 162, 2024.
+  https://github.com/wenet-e2e/wespeaker (Apache License 2.0)
+
+  VoxCeleb: Arsha Nagrani, Joon Son Chung and Andrew Zisserman, "VoxCeleb: a
+  large-scale speaker identification dataset", Interspeech 2017; Joon Son Chung,
+  Arsha Nagrani and Andrew Zisserman, "VoxCeleb2: Deep Speaker Recognition",
+  Interspeech 2018. https://www.robots.ox.ac.uk/~vgg/data/voxceleb/
+
+  ONNX export: sherpa-onnx, Next-gen Kaldi, https://github.com/k2-fsa/sherpa-onnx
+  (Apache License 2.0)
+
+The app also installs onnxruntime (MIT), kaldi-native-fbank (Apache License 2.0),
+NumPy (BSD 3-Clause) and aiohttp (Apache License 2.0) from PyPI.

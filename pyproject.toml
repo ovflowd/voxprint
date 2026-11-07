@@ -1,0 +1,54 @@
+[project]
+name = "voxprint"
+version = "0.1.0"
+description = "Speaker recognition for Home Assistant Assist: tells which enrolled person spoke to a voice satellite, locally"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Claudio Wunder", email = "cwunder@gnome.org" }]
+requires-python = ">=3.14.2"
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/ovflowd/voxprint"
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7",
+    "pytest-homeassistant==2026.11.0",
+    "ruff>=0.15",
+    # Requirements of the Assist pipeline and hassio integrations at Home Assistant 2026.11.0, for the tests.
+    "aiohasupervisor==0.8.1",
+    "gazetteer-matcher==1.1.0",
+    "ha-ffmpeg==3.2.2",
+    "hassil==3.12.1",
+    "home-assistant-intents==2026.10.27",
+    "mutagen==1.48.1",
+    "pymicro-vad==1.0.1",
+    "pyspeex-noise==1.0.2",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["custom_components.voxprint"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+extend-exclude = ["app/.venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["conftest", "custom_components", "fakes", "fetch_model", "server", "synth"]
+force-sort-within-sections = true
+combine-as-imports = true

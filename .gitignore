@@ -1,0 +1,24 @@
+# Biometric data never goes into git: voice recordings, voiceprints, embeddings and the stores that hold them
+*.wav
+*.flac
+*.mp3
+*.ogg
+*.npy
+*.npz
+.storage/
+local/
+
+# The model is downloaded with a pinned checksum (app/fetch_model.py), never committed
+models/
+*.onnx
+
+__pycache__/
+*.egg-info/
+build/
+dist/
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/

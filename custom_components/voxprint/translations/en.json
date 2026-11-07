@@ -1,0 +1,156 @@
+{
+  "config": {
+    "abort": {
+      "no_satellites": "Set up an Assist satellite first: Voxprint tells who spoke to one."
+    },
+    "error": {
+      "app_incompatible": "The app at this URL runs a different model or API version. Update the app and the integration to matching versions.",
+      "cannot_connect": "Can't reach the Voxprint app at this URL. Check that the app is running.",
+      "no_satellite_selected": "Choose at least one satellite."
+    },
+    "step": {
+      "reconfigure": {
+        "data": {
+          "url": "App URL"
+        },
+        "data_description": {
+          "url": "Where Home Assistant reaches the Voxprint app. On Home Assistant OS this is filled in when the app is installed."
+        },
+        "description": "Change where Home Assistant reaches the Voxprint app."
+      },
+      "user": {
+        "data": {
+          "satellites": "Satellites",
+          "url": "App URL"
+        },
+        "data_description": {
+          "satellites": "Voxprint listens to these satellites only. Audio from the companion app, the browser or other satellites is never captured.",
+          "url": "Where Home Assistant reaches the Voxprint app. On Home Assistant OS this is filled in when the app is installed."
+        },
+        "description": "Voxprint tells which enrolled person spoke to an Assist satellite. It needs the Voxprint app, which turns each utterance into a voiceprint and keeps nothing. Add speakers after this step."
+      }
+    }
+  },
+  "config_subentries": {
+    "speaker": {
+      "entry_type": "Speaker",
+      "error": {
+        "name_empty": "Enter a name.",
+        "name_taken": "Another speaker already has this name."
+      },
+      "initiate_flow": {
+        "user": "Add speaker"
+      },
+      "step": {
+        "reconfigure": {
+          "data": {
+            "name": "Name",
+            "person": "Person"
+          },
+          "data_description": {
+            "name": "How the speaker sensors will call this person. Each speaker needs a different name.",
+            "person": "Optional. The speaker sensors then also show the person and their user ID, for automations that compare it with who is logged in."
+          },
+          "description": "Renaming a speaker keeps their voiceprint."
+        },
+        "user": {
+          "data": {
+            "name": "Name",
+            "person": "Person"
+          },
+          "data_description": {
+            "name": "How the speaker sensors will call this person. Each speaker needs a different name.",
+            "person": "Optional. The speaker sensors then also show the person and their user ID, for automations that compare it with who is logged in."
+          },
+          "description": "After adding the speaker, turn on their Enrollment switch and have them talk to a satellite, alone, for about 3 minutes."
+        }
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "reset_voiceprint": {
+        "name": "Reset voiceprint"
+      }
+    },
+    "sensor": {
+      "enrolled": {
+        "name": "Enrolled utterances"
+      },
+      "speaker": {
+        "name": "Speaker",
+        "state_attributes": {
+          "error": {
+            "name": "Error",
+            "state": {
+              "no_utterance": "No utterance yet",
+              "listening": "Listening",
+              "not_captured": "Audio not captured",
+              "too_short": "Too little speech",
+              "not_enrolled": "Nobody enrolled",
+              "ambiguous": "Two speakers too close",
+              "app_unavailable": "App unavailable",
+              "app_timeout": "App too slow",
+              "model_mismatch": "App runs another model",
+              "bad_response": "Unexpected app reply"
+            }
+          },
+          "person": {
+            "name": "Person"
+          },
+          "score": {
+            "name": "Score"
+          },
+          "scores": {
+            "name": "Scores"
+          },
+          "speech_s": {
+            "name": "Speech (s)"
+          },
+          "threshold": {
+            "name": "Threshold"
+          },
+          "user_id": {
+            "name": "User ID"
+          }
+        }
+      }
+    },
+    "switch": {
+      "enrollment": {
+        "name": "Enrollment"
+      }
+    }
+  },
+  "issues": {
+    "app_incompatible": {
+      "title": "The Voxprint app runs another model",
+      "description": "The Voxprint app answered with the model `{model}`, which this version of the integration can't compare with its voiceprints, so no speaker is named. Update the app and the integration to matching versions."
+    },
+    "unsupported_core": {
+      "title": "Voxprint can't hear this version of Home Assistant",
+      "description": "The speech-to-text method Voxprint copies audio from is missing in this Home Assistant version, so no speaker is named. Speech-to-text itself keeps working. Update Voxprint, or remove it until an update supports this version."
+    },
+    "voiceprints_cleared": {
+      "title": "Voiceprints were cleared",
+      "description": "The stored voiceprints were made with the model `{model}`, which can't be compared with the current one, so they were deleted. Turn on each speaker's Enrollment switch and enroll them again."
+    }
+  },
+  "options": {
+    "error": {
+      "no_satellite_selected": "Choose at least one satellite."
+    },
+    "step": {
+      "init": {
+        "data": {
+          "satellites": "Satellites",
+          "threshold": "Threshold"
+        },
+        "data_description": {
+          "satellites": "Voxprint listens to these satellites only. Audio from the companion app, the browser or other satellites is never captured.",
+          "threshold": "The lowest score that names a speaker, from 0.1 to 0.95. Higher lets fewer strangers through and turns away more utterances of enrolled speakers. Set it from your own satellites' scores: see the documentation on calibration."
+        }
+      }
+    }
+  }
+}

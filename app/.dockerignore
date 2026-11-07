@@ -1,0 +1,6 @@
+*
+!Dockerfile
+!fetch_model.py
+!pyproject.toml
+!server.py
+!uv.lock

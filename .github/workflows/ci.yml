@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.14"
+      - name: Install
+        run: uv sync --locked
+      - name: Lint
+        run: uv run ruff check .
+      - name: Check the formatting
+        run: uv run ruff format --check .
+
+  test:
+    name: ${{ matrix.suite }} tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [integration, app]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.14"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: models
+          key: model-e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012
+      - name: Fetch the model
+        run: python3 -I app/fetch_model.py models
+      - name: Install the app
+        working-directory: app
+        run: uv sync --locked
+      - name: Install the integration
+        if: matrix.suite == 'integration'
+        run: uv sync --locked
+      - name: Test the integration
+        if: matrix.suite == 'integration'
+        run: uv run pytest --cov --cov-report=term-missing --cov-fail-under=95
+      - name: Test the app
+        if: matrix.suite == 'app'
+        working-directory: app
+        run: uv run pytest
+
+  image:
+    name: App image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        run: docker build -t voxprint-app app
+      - name: Start
+        run: docker run -d --name voxprint -p 127.0.0.1:10340:10340 voxprint-app
+      - name: Check that it answers
+        run: |
+          for _ in $(seq 60); do curl -fsS http://127.0.0.1:10340/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:10340/health | jq -e '.ok and .api == 1 and .model == "wespeaker_resnet34_lm"'
+          head -c 64000 /dev/zero > silence.pcm
+          curl -fsS --data-binary @silence.pcm http://127.0.0.1:10340/v1/embed | jq -e '.too_short == true'
+      - name: Logs
+        if: always()
+        run: docker logs voxprint
