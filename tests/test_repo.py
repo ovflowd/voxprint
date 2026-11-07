@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import struct
 import subprocess
+import tomllib
 
 import pytest
 import yaml
@@ -52,10 +53,9 @@ def test_the_supervisor_finds_exactly_one_app() -> None:
 
 def test_the_versions_agree() -> None:
     manifest = json.loads((INTEGRATION / "manifest.json").read_text())
-    pyproject = (ROOT / "pyproject.toml").read_text()
     app = yaml.safe_load((ROOT / "app" / "config.yaml").read_text())
-    assert re.search(rf'^version = "{re.escape(manifest["version"])}"$', pyproject, re.MULTILINE)
-    assert re.search(rf'^version = "{re.escape(app["version"])}"$', (ROOT / "app" / "pyproject.toml").read_text(), re.M)
+    assert tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"] == manifest["version"]
+    assert tomllib.loads((ROOT / "app" / "pyproject.toml").read_text())["project"]["version"] == app["version"]
     assert json.loads((ROOT / "hacs.json").read_text())["name"] == manifest["name"]
 
 
@@ -86,7 +86,11 @@ def test_no_voice_recording_voiceprint_or_model_is_committed() -> None:
 
 def test_every_error_the_sensor_can_show_is_translated() -> None:
     sources = "\n".join(p.read_text() for p in INTEGRATION.glob("*.py"))
-    errors = set(re.findall(r'Result\("(\w+)"', sources)) | set(re.findall(r'AppError\("(\w+)"', sources))
+    errors = {
+        *re.findall(r'Result\("(\w+)"', sources),
+        *re.findall(r'AppError\("(\w+)"', sources),
+        *re.findall(r'result\("(\w+)"', sources),
+    }
     errors -= {"app_incompatible"}
     states = TRANSLATIONS["entity"]["sensor"]["speaker"]["state_attributes"]["error"]["state"]
     assert errors == set(states)

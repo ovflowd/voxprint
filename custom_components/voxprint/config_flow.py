@@ -12,12 +12,12 @@ from homeassistant.config_entries import (
     OptionsFlow,
     SubentryFlowResult,
 )
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_NAME, CONF_URL, Platform
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import selector as sel
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.hassio import is_hassio
-import voluptuous as vol
+import probatio as vol
 
 from .client import AppClient, AppError
 from .const import (
@@ -26,13 +26,12 @@ from .const import (
     CONF_PERSON,
     CONF_SATELLITES,
     CONF_THRESHOLD,
-    CONF_URL,
     DEFAULT_THRESHOLD,
     DOMAIN,
     SUBENTRY_SPEAKER,
 )
 
-SATELLITES = sel.EntitySelector(sel.EntitySelectorConfig(domain="assist_satellite", multiple=True))
+SATELLITES = sel.EntitySelector(sel.EntitySelectorConfig(domain=Platform.ASSIST_SATELLITE, multiple=True))
 URL_SCHEMA = vol.Schema(
     {vol.Required(CONF_URL): sel.TextSelector(sel.TextSelectorConfig(type=sel.TextSelectorType.URL))}
 )
@@ -57,7 +56,7 @@ def _default_url(hass: HomeAssistant) -> str:
     """The installed app's address on Home Assistant OS, or a host port elsewhere."""
     if is_hassio(hass):
         # Imported here: the hassio integration's requirements exist only where the Supervisor runs.
-        from homeassistant.components.hassio import HassioNotReadyError, get_apps_list
+        from homeassistant.components.hassio import HassioNotReadyError, get_apps_list, hostname_from_addon_slug
 
         try:
             apps = get_apps_list(hass)
@@ -67,7 +66,7 @@ def _default_url(hass: HomeAssistant) -> str:
             slug = str(app.get("slug", ""))
             # A repository app's slug is "<repository hash>_voxprint", a local one's "local_voxprint".
             if slug.rpartition("_")[2] == APP_SLUG:
-                return f"http://{slug.replace('_', '-')}:{APP_PORT}"
+                return f"http://{hostname_from_addon_slug(slug)}:{APP_PORT}"
     return f"http://localhost:{APP_PORT}"
 
 
@@ -98,7 +97,7 @@ class VoxprintConfigFlow(ConfigFlow, domain=DOMAIN):
         return VoxprintOptionsFlow()
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        satellites = self.hass.states.async_entity_ids("assist_satellite")
+        satellites = self.hass.states.async_entity_ids(Platform.ASSIST_SATELLITE)
         if not satellites:
             return self.async_abort(reason="no_satellites")
         errors: dict[str, str] = {}
@@ -158,7 +157,7 @@ class SpeakerSubentryFlow(ConfigSubentryFlow):
         if user_input is not None:
             name, data = _speaker(user_input)
             if not (errors := self._name_errors(name, None)):
-                return self.async_create_entry(title=name, data=data, unique_id=name.casefold())
+                return self.async_create_entry(title=name, data=data)
         return self.async_show_form(
             step_id="user", data_schema=self.add_suggested_values_to_schema(SPEAKER_SCHEMA, user_input), errors=errors
         )
@@ -169,9 +168,7 @@ class SpeakerSubentryFlow(ConfigSubentryFlow):
         if user_input is not None:
             name, data = _speaker(user_input)
             if not (errors := self._name_errors(name, subentry.subentry_id)):
-                return self.async_update_and_abort(
-                    self._get_entry(), subentry, title=name, data=data, unique_id=name.casefold()
-                )
+                return self.async_update_and_abort(self._get_entry(), subentry, title=name, data=data)
         suggested = user_input or {CONF_NAME: subentry.title, **subentry.data}
         return self.async_show_form(
             step_id="reconfigure",

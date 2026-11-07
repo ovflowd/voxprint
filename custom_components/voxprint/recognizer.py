@@ -14,17 +14,21 @@ the browser, a satellite that isn't configured) is never captured.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import partial
 import logging
 from typing import TYPE_CHECKING, Any
 import weakref
 
 from homeassistant.components import stt
+from homeassistant.components.assist_satellite.entity import AssistSatelliteState
 from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
+from homeassistant.helpers.singleton import singleton
 from homeassistant.helpers.storage import Store
+from homeassistant.util.hass_dict import HassKey
 
 from . import tee
 from .client import AppClient, AppError
@@ -45,9 +49,12 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-LISTENING = "listening"
-PROCESSING = "processing"
 DOCS_URL = "https://github.com/ovflowd/voxprint/blob/main/docs/troubleshooting.md"
+DATA_STORE: HassKey[Store[dict[str, Any]]] = HassKey(DOMAIN)
+# Enrollment saves wait this long, so a burst of utterances is written once.
+SAVE_DELAY_S = 10
+# The signal key for changes to enrollment or a voiceprint. Results use the satellite's entity ID.
+SPEAKERS = "speakers"
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +68,10 @@ class Result:
     speech_s: float | None = None
 
 
+@singleton(DATA_STORE)
+@callback
 def voiceprint_store(hass: HomeAssistant) -> Store[dict[str, Any]]:
+    """One store for the whole instance, so removing it waits for, or cancels, any write still pending."""
     return Store(hass, STORAGE_VERSION, STORAGE_KEY, private=True, atomic_writes=True)
 
 
@@ -84,7 +94,6 @@ class Recognizer:
         self.results = {satellite: Result("no_utterance") for satellite in self.satellites}
         self.enrolling: str | None = None
         self._store = voiceprint_store(hass)
-        self._listeners: list[Callable[[], None]] = []
         self._seq = dict.fromkeys(self.satellites, 0)
         self._captured = dict.fromkeys(self.satellites, 0)
         self._pending: weakref.WeakKeyDictionary[asyncio.Task[Any], tuple[str, int]] = weakref.WeakKeyDictionary()
@@ -92,7 +101,6 @@ class Recognizer:
         self._unsub_satellites: CALLBACK_TYPE | None = None
         self._cancel_enroll: CALLBACK_TYPE | None = None
         self._enroll_satellite: str | None = None
-        self._save_lock = asyncio.Lock()
         self._stopped = False
 
     async def async_start(self) -> None:
@@ -104,14 +112,12 @@ class Recognizer:
         self._unsub_satellites = async_track_state_change_event(self.hass, self.satellites, self._on_satellite)
         self._ensure_tees()
 
-    async def async_stop(self) -> None:
-        """Stop hearing anything, and wait for a save in progress, so nothing writes the voiceprints afterwards."""
+    @callback
+    def async_stop(self) -> None:
+        """Stop hearing anything. A score still in flight is dropped, and nothing is saved afterwards."""
         if self._stopped:
             return
         self._stopped = True
-        self.enrolling = None
-        for satellite in self._seq:
-            self._seq[satellite] += 1
         if self._unsub_satellites:
             self._unsub_satellites()
         if self._cancel_enroll:
@@ -119,20 +125,10 @@ class Recognizer:
         for entity in list(self._teed):
             tee.uninstall(entity)
         self._teed.clear()
-        async with self._save_lock:
-            pass
 
-    @callback
-    def async_add_listener(self, update: Callable[[], None]) -> CALLBACK_TYPE:
-        self._listeners.append(update)
-        return lambda: self._listeners.remove(update)
-
-    @callback
-    def _notify(self) -> None:
-        for update in list(self._listeners):
-            update()
-
-    # storage -------------------------------------------------------------------
+    def signal(self, key: str) -> str:
+        """The dispatcher signal for a satellite's result (its entity ID) or for SPEAKERS."""
+        return f"{DOMAIN}_{self.entry.entry_id}_{key}"
 
     async def _async_load(self) -> None:
         data = await self._store.async_load()
@@ -150,15 +146,12 @@ class Recognizer:
         if set(stored) - set(self.voiceprints):
             await self._async_save()
 
-    async def _async_save(self) -> None:
-        async with self._save_lock:
-            if self._stopped:
-                return
-            await self._store.async_save(
-                {"model": MODEL, "speakers": {speaker: vp.to_json() for speaker, vp in self.voiceprints.items()}}
-            )
+    def _data(self) -> dict[str, Any]:
+        return {"model": MODEL, "speakers": {speaker: vp.to_json() for speaker, vp in self.voiceprints.items()}}
 
-    # capture -------------------------------------------------------------------
+    async def _async_save(self) -> None:
+        if not self._stopped:
+            await self._store.async_save(self._data())
 
     @callback
     def _ensure_tees(self) -> None:
@@ -167,23 +160,27 @@ class Recognizer:
             entity = stt.async_get_speech_to_text_entity(self.hass, entity_id)
             if entity is None or entity in self._teed:
                 continue
-            if tee.install(entity, self._on_start, self._on_audio_end, self._on_done):
+            if tee.install(entity, self._on_start, self._on_end):
                 self._teed.add(entity)
 
     @callback
     def _on_satellite(self, event: Event[EventStateChangedData]) -> None:
         satellite = event.data["entity_id"]
         old, new = event.data["old_state"], event.data["new_state"]
-        if new is not None and new.state == LISTENING:
+        if new is not None and new.state == AssistSatelliteState.LISTENING:
             self._seq[satellite] += 1
             if (task := asyncio.current_task()) is not None:
                 self._pending[task] = (satellite, self._seq[satellite])
             self._ensure_tees()
             self._publish(satellite, Result("listening"))
-        elif old is not None and old.state == LISTENING:
+        elif old is not None and old.state == AssistSatelliteState.LISTENING:
             if self._captured[satellite] != self._seq[satellite]:
                 self._publish(satellite, Result("not_captured"))
-        elif new is not None and new.state == PROCESSING and (old is None or old.state != PROCESSING):
+        elif (
+            new is not None
+            and new.state == AssistSatelliteState.PROCESSING
+            and (old is None or old.state != AssistSatelliteState.PROCESSING)
+        ):
             # A run that starts past speech-to-text, such as STT on the satellite itself: there is no audio to
             # score, and the previous verdict must not stand for this request.
             self._seq[satellite] += 1
@@ -203,57 +200,50 @@ class Recognizer:
         return tee.Capture(satellite, seq, self.enrolling)
 
     @callback
-    def _on_audio_end(self, cap: tee.Capture) -> None:
-        if cap.scored or self._stopped:
+    def _on_end(self, cap: tee.Capture) -> None:
+        if self._stopped:
             return
-        cap.scored = True
-        pcm = bytes(cap.buf)
-        cap.buf.clear()
-        self.entry.async_create_background_task(
-            self.hass, self._async_score(pcm, cap.satellite, cap.seq, cap.enrolling), f"{DOMAIN} score"
-        )
+        pcm, cap.buf, cap.capturing = cap.buf, bytearray(), False
+        self.entry.async_create_background_task(self.hass, self._async_score(pcm, cap), f"{DOMAIN} score")
 
-    @callback
-    def _on_done(self, cap: tee.Capture) -> None:
-        # The engine stopped reading before the audio ended.
-        self._on_audio_end(cap)
+    def _current(self, cap: tee.Capture) -> bool:
+        return not self._stopped and cap.seq == self._seq[cap.satellite]
 
-    # scoring -------------------------------------------------------------------
-
-    async def _async_score(self, pcm: bytes, satellite: str, seq: int, enrolling: str | None) -> None:
-        """Score one utterance. `enrolling` is the speaker who was enrolling when it was spoken."""
+    async def _async_score(self, pcm: bytearray, cap: tee.Capture) -> None:
         try:
             reply: dict[str, Any] = await self.client.embed(pcm)
         except AppError as err:
             _LOGGER.debug("Voxprint app: %s", err)
-            reply = {"error": err.code}
+            if self._current(cap):
+                self._publish(cap.satellite, Result(err.code))
+            return
         finally:
             del pcm
-        if self._stopped or seq != self._seq[satellite]:
+        if not self._current(cap):
             return
         try:
             result = self._decide(reply)
         except (KeyError, TypeError, ValueError) as err:
             _LOGGER.warning("Unexpected reply from the Voxprint app: %r", err)
             result = Result("bad_response")
-        self._publish(satellite, result)
+        self._publish(cap.satellite, result)
+        # Only the speaker who was enrolling when the utterance was spoken, and still is.
         if (
-            enrolling is not None
-            and enrolling == self.enrolling
+            cap.enrolling is not None
+            and cap.enrolling == self.enrolling
             and result.error in (None, "not_enrolled", "ambiguous")
         ):
-            await self._async_enroll(enrolling, satellite, reply["embedding"], result)
+            self._enroll(cap.enrolling, cap.satellite, reply["embedding"], result)
 
     def _decide(self, reply: dict[str, Any]) -> Result:
         speech_s = reply.get("voiced_s")
-        if reply.get("error"):
-            return Result(str(reply["error"]), speech_s=speech_s)
+        result = partial(Result, speech_s=speech_s)
         if reply.get("model") != MODEL:
             self._create_issue("app_incompatible", ir.IssueSeverity.ERROR, {"model": str(reply.get("model"))})
-            return Result("model_mismatch", speech_s=speech_s)
+            return result("model_mismatch")
         ir.async_delete_issue(self.hass, DOMAIN, "app_incompatible")
         if "embedding" not in reply or float(speech_s) < MIN_SPEECH_S:
-            return Result("too_short", speech_s=speech_s)
+            return result("too_short")
         embedding = reply["embedding"]
         scores = {
             speaker: round(score, 3)
@@ -261,21 +251,23 @@ class Recognizer:
             if (score := vp.score(embedding)) is not None
         }
         if not scores:
-            return Result("not_enrolled", speech_s=speech_s)
+            return result("not_enrolled")
         ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
         best, score = ranked[0]
         if score < self.threshold:
-            return Result(None, score=score, scores=scores, speech_s=speech_s)
+            return result(None, score=score, scores=scores)
         if len(ranked) > 1 and ranked[1][1] >= self.threshold and score - ranked[1][1] < AMBIGUITY_MARGIN:
-            return Result("ambiguous", score=score, scores=scores, speech_s=speech_s)
-        return Result(None, speaker=best, score=score, scores=scores, speech_s=speech_s)
+            return result("ambiguous", score=score, scores=scores)
+        return result(None, speaker=best, score=score, scores=scores)
 
     @callback
     def _publish(self, satellite: str, result: Result) -> None:
         self.results[satellite] = result
-        self._notify()
+        async_dispatcher_send(self.hass, self.signal(satellite))
 
-    # enrollment ----------------------------------------------------------------
+    @callback
+    def _speakers_changed(self) -> None:
+        async_dispatcher_send(self.hass, self.signal(SPEAKERS))
 
     @callback
     def async_set_enrolling(self, speaker: str | None) -> None:
@@ -287,14 +279,15 @@ class Recognizer:
         self._enroll_satellite = None
         if speaker is not None:
             self._cancel_enroll = async_call_later(self.hass, ENROLL_MINUTES * 60, self._enroll_timeout)
-        self._notify()
+        self._speakers_changed()
 
     @callback
     def _enroll_timeout(self, _now: Any) -> None:
         self._cancel_enroll = None
         self.async_set_enrolling(None)
 
-    async def _async_enroll(self, speaker: str, satellite: str, embedding: list[float], result: Result) -> None:
+    @callback
+    def _enroll(self, speaker: str, satellite: str, embedding: list[float], result: Result) -> None:
         # One satellite per session, the first that hears the speaker: someone talking to another satellite in
         # another room can't join. A speaker's first utterance is taken as it is, since there is nothing of
         # theirs to compare it with, and someone who sounds like an enrolled speaker must still be able to
@@ -313,15 +306,13 @@ class Recognizer:
             return
         self._enroll_satellite = satellite
         self.voiceprints[speaker].add(embedding)
-        self._notify()
-        await self._async_save()
+        self._speakers_changed()
+        self._store.async_delay_save(self._data, SAVE_DELAY_S)
 
     async def async_reset(self, speaker: str) -> None:
         self.voiceprints[speaker].clear()
-        self._notify()
+        self._speakers_changed()
         await self._async_save()
-
-    # repairs -------------------------------------------------------------------
 
     @callback
     def _create_issue(

@@ -14,8 +14,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import VoxprintConfigEntry
 from .const import CONF_PERSON, SUBENTRY_SPEAKER
-from .entity import SpeakerEntity
-from .recognizer import Recognizer
+from .entity import SpeakerEntity, VoxprintEntity
 
 PARALLEL_UPDATES = 0
 
@@ -44,18 +43,16 @@ def _remove_stale(hass: HomeAssistant, entry: VoxprintConfigEntry, current: set[
             registry.async_remove(registry_entry.entity_id)
 
 
-class SatelliteSpeakerSensor(SensorEntity):
+class SatelliteSpeakerSensor(VoxprintEntity, SensorEntity):
     """Who spoke the satellite's last utterance. Its state is the speaker's name, or unknown."""
 
-    _attr_has_entity_name = True
-    _attr_should_poll = False
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_translation_key = "speaker"
 
     def __init__(
         self, hass: HomeAssistant, entry: VoxprintConfigEntry, satellite: str, speakers: list[ConfigSubentry]
     ) -> None:
-        self._recognizer: Recognizer = entry.runtime_data
+        super().__init__(entry.runtime_data, entry.runtime_data.signal(satellite))
         self._satellite = satellite
         self._names = {subentry.subentry_id: subentry.title for subentry in speakers}
         self._persons = {subentry.subentry_id: subentry.data.get(CONF_PERSON) for subentry in speakers}
@@ -70,9 +67,6 @@ class SatelliteSpeakerSensor(SensorEntity):
             self._attr_has_entity_name = False
             self._attr_name = f"{state.name if state else satellite} speaker"
 
-    async def async_added_to_hass(self) -> None:
-        self.async_on_remove(self._recognizer.async_add_listener(self.async_write_ha_state))
-
     @property
     def native_value(self) -> str | None:
         speaker = self._recognizer.results[self._satellite].speaker
@@ -81,7 +75,7 @@ class SatelliteSpeakerSensor(SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         result = self._recognizer.results[self._satellite]
-        person = self._persons.get(result.speaker) if result.speaker else None
+        person = self._persons.get(result.speaker)
         person_state = self.hass.states.get(person) if person else None
         return {
             "person": person,
@@ -96,9 +90,7 @@ class SatelliteSpeakerSensor(SensorEntity):
 
 class EnrolledSensor(SpeakerEntity, SensorEntity):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, recognizer: Recognizer, subentry: ConfigSubentry) -> None:
-        super().__init__(recognizer, subentry, "enrolled")
+    _attr_translation_key = "enrolled"
 
     @property
     def native_value(self) -> int:

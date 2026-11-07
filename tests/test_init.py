@@ -13,7 +13,7 @@ from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.voxprint import tee
 from custom_components.voxprint.const import CONF_SATELLITES, DOMAIN
-from fakes import KITCHEN, STT_TEXT, FakeApp, FakeSatellite, FakeSTT, audio, utter
+from fakes import KITCHEN, STT_TEXT, VOICES, FakeApp, FakeSatellite, FakeSTT, audio, utter, voiceprint
 
 
 async def test_setup_puts_the_tee_on_every_stt_entity(
@@ -100,12 +100,12 @@ async def test_a_renamed_satellite_is_followed(
     satellites: dict[str, FakeSatellite],
     entity_registry: er.EntityRegistry,
 ) -> None:
-    voxprint.runtime_data.voiceprints[next(iter(voxprint.runtime_data.voiceprints))].add([1.0] + [0.0] * 255)
     entity_registry.async_update_entity(KITCHEN, new_entity_id="assist_satellite.kitchen_two")
     await hass.async_block_till_done()
     assert voxprint.options[CONF_SATELLITES][0] == "assist_satellite.kitchen_two"
+    voiceprint(voxprint, "Alice").add(VOICES[1])
     await utter(hass, satellites[KITCHEN], audio(1))
-    assert hass.states.get("sensor.kitchen_speaker").attributes["error"] in (None, "not_enrolled")
+    assert hass.states.get("sensor.kitchen_speaker").state == "Alice"
     assert (
         entity_registry.async_get("sensor.kitchen_speaker").device_id
         == entity_registry.async_get("assist_satellite.kitchen_two").device_id

@@ -94,7 +94,7 @@ to voice assistants unless you do: keep it that way, so nobody can ask Assist to
 | Captured | Audio of utterances from the configured satellites only, in RAM |
 | Sent | That audio, to the app's URL, once per utterance. On Home Assistant OS this stays on the internal network |
 | Kept by the app | Nothing. Audio lives for one request, nothing is written, and it needs no network after the build |
-| Stored | Embeddings, never audio: at most 150 per speaker, as float16, in `/config/.storage/voxprint`, mode 0600 |
+| Stored | Embeddings, never audio: at most 150 per speaker, as float16, in `/config/.storage/voxprint`, mode 0600. Enrolled utterances are written within 10 seconds, a reset or a removed speaker at once |
 | Deleted | A speaker's embeddings when the speaker is removed or reset (if Voxprint is disabled then, when it next loads); the whole file when the integration is removed |
 | In diagnostics | Counts, scores and errors, with speakers numbered. No names, persons, user IDs, addresses or embeddings |
 | In logs | At debug level, the app logs each utterance's length and timing. The integration never logs who spoke |

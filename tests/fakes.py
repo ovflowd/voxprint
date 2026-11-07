@@ -14,14 +14,16 @@ from typing import Any, ClassVar
 from homeassistant.components import stt
 from homeassistant.components.assist_pipeline import PipelineStage
 from homeassistant.components.assist_satellite import AssistSatelliteConfiguration, AssistSatelliteEntity
-from homeassistant.config_entries import ConfigEntry, ConfigSubentryData
+from homeassistant.config_entries import SOURCE_USER, ConfigEntry, ConfigSubentryData
+from homeassistant.const import EVENT_HOMEASSISTANT_FINAL_WRITE
 from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.device_registry import DeviceInfo
 from pytest_homeassistant.test_util.aiohttp import AiohttpClientMocker, AiohttpClientMockResponse
 from yarl import URL
 
-from custom_components.voxprint.const import CONF_PERSON, MODEL, SUBENTRY_SPEAKER
-from custom_components.voxprint.voiceprint import Voiceprint
+from custom_components.voxprint.const import API_VERSION, CONF_PERSON, DOMAIN, MODEL, STORAGE_KEY, SUBENTRY_SPEAKER
+from custom_components.voxprint.voiceprint import Voiceprint, encode
 
 APP_URL = "http://voxprint.test:10340"
 TEST_DOMAIN = "test"
@@ -30,6 +32,14 @@ BEDROOM = "assist_satellite.bedroom"
 LOOSE = "assist_satellite.loose"
 STT_TEXT = "turn on the lights"
 SPEECH_S = 2.0
+META = stt.SpeechMetadata(
+    language="en",
+    format=stt.AudioFormats.WAV,
+    codec=stt.AudioCodecs.PCM,
+    bit_rate=stt.AudioBitRates.BITRATE_16,
+    sample_rate=stt.AudioSampleRates.SAMPLERATE_16000,
+    channel=stt.AudioChannels.CHANNEL_MONO,
+)
 
 
 def unit(*components: float) -> list[float]:
@@ -118,7 +128,7 @@ class FakeApp:
     """The Voxprint app's HTTP API. `replies` overrides the next answers in order."""
 
     def __init__(self, aioclient_mock: AiohttpClientMocker) -> None:
-        self.health: dict[str, Any] | Exception = {"ok": True, "api": 1, "model": MODEL, "version": "0.1.0"}
+        self.health: dict[str, Any] | Exception = {"ok": True, "api": API_VERSION, "model": MODEL, "version": "0.1.0"}
         self.replies: list[dict[str, Any] | list[float] | Exception] = []
         self.audio: list[bytes] = []
         self.delay = 0.0
@@ -145,12 +155,34 @@ class FakeApp:
 
 
 def speaker(title: str, person: str | None = None) -> ConfigSubentryData:
-    return ConfigSubentryData(
-        data={CONF_PERSON: person} if person else {},
-        subentry_type=SUBENTRY_SPEAKER,
-        title=title,
-        unique_id=title.casefold(),
+    return ConfigSubentryData(data={CONF_PERSON: person} if person else {}, subentry_type=SUBENTRY_SPEAKER, title=title)
+
+
+def stored_voiceprints(model: str, speakers: dict[str, list[list[float]]]) -> dict[str, Any]:
+    """The voiceprint file's contents, for `hass_storage`."""
+    data = {"model": model, "speakers": {sid: [encode(v) for v in vectors] for sid, vectors in speakers.items()}}
+    return {"version": 1, "key": STORAGE_KEY, "data": data}
+
+
+async def flush_saves(hass: HomeAssistant) -> None:
+    """Write an enrollment save that is waiting for its delay, as Home Assistant does when it stops."""
+    hass.bus.async_fire(EVENT_HOMEASSISTANT_FINAL_WRITE)
+    await hass.async_block_till_done()
+
+
+async def switch(hass: HomeAssistant, entity_id: str, on: bool) -> None:
+    await hass.services.async_call("switch", "turn_on" if on else "turn_off", {"entity_id": entity_id}, blocking=True)
+
+
+async def start_flow(hass: HomeAssistant) -> FlowResult:
+    return await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+
+
+async def add_speaker(hass: HomeAssistant, entry: ConfigEntry, user_input: dict[str, Any]) -> FlowResult:
+    result = await hass.config_entries.subentries.async_init(
+        (entry.entry_id, SUBENTRY_SPEAKER), context={"source": SOURCE_USER}
     )
+    return await hass.config_entries.subentries.async_configure(result["flow_id"], user_input)
 
 
 def subentry_id(entry: ConfigEntry, title: str) -> str:

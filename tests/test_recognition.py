@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
 from aiohttp import ClientError
-from homeassistant.components import stt
 from homeassistant.components.assist_pipeline import PipelineEventType
-from homeassistant.core import Event, HomeAssistant, State
+from homeassistant.const import EVENT_STATE_CHANGED
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 import pytest
-from pytest_homeassistant.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry, async_capture_events
 
 from custom_components.voxprint import tee
 from custom_components.voxprint.const import CONF_SATELLITES, DOMAIN, MODEL
@@ -20,6 +20,7 @@ from fakes import (
     BEDROOM,
     KITCHEN,
     LOOSE,
+    META,
     SPEECH_S,
     STT_TEXT,
     VOICES,
@@ -32,14 +33,6 @@ from fakes import (
 )
 
 KITCHEN_SENSOR = "sensor.kitchen_speaker"
-META = stt.SpeechMetadata(
-    language="en",
-    format=stt.AudioFormats.WAV,
-    codec=stt.AudioCodecs.PCM,
-    bit_rate=stt.AudioBitRates.BITRATE_16,
-    sample_rate=stt.AudioSampleRates.SAMPLERATE_16000,
-    channel=stt.AudioChannels.CHANNEL_MONO,
-)
 
 
 @pytest.fixture
@@ -49,15 +42,15 @@ def enrolled(voxprint: MockConfigEntry) -> MockConfigEntry:
     return voxprint
 
 
-def states_of(hass: HomeAssistant, entity_id: str) -> list[State]:
-    seen: list[State] = []
+class States:
+    """The states an entity goes through, from now on."""
 
-    def record(event: Event) -> None:
-        if event.data["entity_id"] == entity_id and event.data["new_state"] is not None:
-            seen.append(event.data["new_state"])
+    def __init__(self, hass: HomeAssistant, entity_id: str) -> None:
+        self._events = async_capture_events(hass, EVENT_STATE_CHANGED)
+        self._entity_id = entity_id
 
-    hass.bus.async_listen("state_changed", record)
-    return seen
+    def __iter__(self) -> Iterator[State]:
+        return (e.data["new_state"] for e in self._events if e.data["entity_id"] == self._entity_id)
 
 
 async def test_each_satellite_gets_a_speaker_sensor_on_its_own_device(
@@ -135,16 +128,17 @@ async def test_nobody_enrolled_yet_says_so(
 async def test_the_result_resets_while_listening_and_moves_on_every_utterance(
     hass: HomeAssistant, enrolled: MockConfigEntry, satellites: dict[str, FakeSatellite]
 ) -> None:
-    seen = states_of(hass, KITCHEN_SENSOR)
+    seen = States(hass, KITCHEN_SENSOR)
     await utter(hass, satellites[KITCHEN], audio(1))
     await utter(hass, satellites[KITCHEN], audio(1))
-    assert [(s.state, s.attributes["error"]) for s in seen] == [
+    states = list(seen)
+    assert [(s.state, s.attributes["error"]) for s in states] == [
         ("unknown", "listening"),
         ("Alice", None),
         ("unknown", "listening"),
         ("Alice", None),
     ]
-    assert seen[1].last_updated < seen[3].last_updated
+    assert states[1].last_updated < states[3].last_updated
 
 
 async def test_stt_gets_every_byte_and_its_transcript_is_unchanged(
@@ -205,7 +199,7 @@ async def test_two_satellites_at_once_each_get_their_own_speaker(
 async def test_a_late_score_for_an_older_utterance_is_dropped(
     hass: HomeAssistant, enrolled: MockConfigEntry, satellites: dict[str, FakeSatellite], fake_app: FakeApp
 ) -> None:
-    seen = states_of(hass, KITCHEN_SENSOR)
+    seen = States(hass, KITCHEN_SENSOR)
     fake_app.delay = 0.2
     await satellites[KITCHEN].utter(audio(1))
     fake_app.delay = 0.0

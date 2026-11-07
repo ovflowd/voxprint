@@ -33,9 +33,9 @@ dev = [
 package = false
 
 [tool.pytest.ini_options]
-# respx's plugin imports httpx, and Home Assistant must alias httpx to httpx2 before anything imports it.
-# Which plugin loads first depends on the filesystem, and nothing here uses respx.
-addopts = "-p no:respx"
+# Home Assistant aliases httpx to httpx2 when it is imported, which must happen before any plugin imports
+# httpx (respx's does). Plugins load in filesystem order, so Home Assistant is loaded first.
+addopts = "-p homeassistant"
 testpaths = ["tests"]
 pythonpath = [".", "tests"]
 asyncio_mode = "auto"

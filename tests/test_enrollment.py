@@ -15,15 +15,24 @@ from pytest_homeassistant.common import MockConfigEntry, async_fire_time_changed
 from custom_components.voxprint import recognizer
 from custom_components.voxprint.const import DOMAIN, ENROLL_MINUTES, MODEL, STORAGE_KEY
 from custom_components.voxprint.voiceprint import decode, encode
-from fakes import BEDROOM, KITCHEN, VOICES, FakeApp, FakeSatellite, audio, subentry_id, utter, voiceprint
+from fakes import (
+    BEDROOM,
+    KITCHEN,
+    VOICES,
+    FakeApp,
+    FakeSatellite,
+    audio,
+    flush_saves,
+    stored_voiceprints,
+    subentry_id,
+    switch,
+    utter,
+    voiceprint,
+)
 
 ALICE_SWITCH = "switch.alice_enrollment"
 BOB_SWITCH = "switch.bob_enrollment"
 ALICE_COUNT = "sensor.alice_enrolled_utterances"
-
-
-async def switch(hass: HomeAssistant, entity_id: str, on: bool) -> None:
-    await hass.services.async_call("switch", "turn_on" if on else "turn_off", {"entity_id": entity_id}, blocking=True)
 
 
 def stored(hass_storage: dict[str, Any]) -> dict[str, Any]:
@@ -41,6 +50,8 @@ async def test_enrollment_adds_each_utterance_and_stores_only_embeddings(
     for _ in range(3):
         await utter(hass, satellites[KITCHEN], audio(1))
     assert hass.states.get(ALICE_COUNT).state == "3"
+    assert STORAGE_KEY not in hass_storage
+    await flush_saves(hass)
     data = stored(hass_storage)
     alice, bob = subentry_id(voxprint, "Alice"), subentry_id(voxprint, "Bob")
     assert data == {"model": MODEL, "speakers": {alice: [encode(VOICES[1])] * 3, bob: []}}
@@ -155,11 +166,7 @@ async def test_removing_a_speaker_deletes_their_voiceprint(
     hass_storage: dict[str, Any],
 ) -> None:
     alice, bob = subentry_id(config_entry, "Alice"), subentry_id(config_entry, "Bob")
-    hass_storage[STORAGE_KEY] = {
-        "version": 1,
-        "key": STORAGE_KEY,
-        "data": {"model": MODEL, "speakers": {alice: [encode(VOICES[1])], bob: [encode(VOICES[2])]}},
-    }
+    hass_storage[STORAGE_KEY] = stored_voiceprints(MODEL, {alice: [VOICES[1]], bob: [VOICES[2]]})
     config_entry.add_to_hass(hass)
     set_up = await hass.config_entries.async_setup(config_entry.entry_id)
     assert set_up
@@ -178,12 +185,15 @@ async def test_removing_the_integration_deletes_every_voiceprint_even_mid_enroll
 ) -> None:
     await switch(hass, ALICE_SWITCH, True)
     await utter(hass, satellites[KITCHEN], audio(1))
+    await flush_saves(hass)
     assert STORAGE_KEY in hass_storage
+    await utter(hass, satellites[KITCHEN], audio(1))
     fake_app.delay = 0.2
     await satellites[KITCHEN].utter(audio(1))
     removed = await hass.config_entries.async_remove(voxprint.entry_id)
     assert removed
     await hass.async_block_till_done(wait_background_tasks=True)
+    await flush_saves(hass)
     assert STORAGE_KEY not in hass_storage
 
 
@@ -196,11 +206,7 @@ async def test_voiceprints_from_another_model_are_cleared_with_a_repair(
     issue_registry: ir.IssueRegistry,
 ) -> None:
     alice = subentry_id(config_entry, "Alice")
-    hass_storage[STORAGE_KEY] = {
-        "version": 1,
-        "key": STORAGE_KEY,
-        "data": {"model": "older_model", "speakers": {alice: [encode(VOICES[1])]}},
-    }
+    hass_storage[STORAGE_KEY] = stored_voiceprints("older_model", {alice: [VOICES[1]]})
     config_entry.add_to_hass(hass)
     set_up = await hass.config_entries.async_setup(config_entry.entry_id)
     assert set_up
@@ -253,11 +259,13 @@ async def test_a_score_landing_while_unloading_saves_nothing(
 ) -> None:
     await switch(hass, ALICE_SWITCH, True)
     await utter(hass, satellites[KITCHEN], audio(1))
+    await flush_saves(hass)
     saved = stored(hass_storage)
     fake_app.delay = 0.1
     await satellites[KITCHEN].utter(audio(3))
     unloaded = await hass.config_entries.async_unload(voxprint.entry_id)
     assert unloaded
     await hass.async_block_till_done(wait_background_tasks=True)
+    await flush_saves(hass)
     assert stored(hass_storage) == saved
     assert fake_app.audio[-1] == audio(3)

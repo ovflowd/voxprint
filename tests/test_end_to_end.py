@@ -11,18 +11,17 @@ import asyncio
 from collections.abc import AsyncIterator
 import os
 from pathlib import Path
-import socket
 import subprocess
 
 from aiohttp import ClientError, ClientSession
-from homeassistant.config_entries import SOURCE_USER
-from homeassistant.const import CONF_NAME
+from aiohttp.test_utils import unused_port
+from homeassistant.const import CONF_NAME, CONF_URL
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 import pytest
 
-from custom_components.voxprint.const import CONF_PERSON, CONF_SATELLITES, CONF_URL, DOMAIN
-from fakes import KITCHEN, STT_TEXT, FakeSatellite, FakeSTT, utter
+from custom_components.voxprint.const import CONF_PERSON, CONF_SATELLITES, DOMAIN
+from fakes import KITCHEN, STT_TEXT, FakeSatellite, FakeSTT, add_speaker, start_flow, switch, utter
 from synth import HIGH, LOW, MIDDLE, silence, voice
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,9 +34,7 @@ SENSOR = "sensor.kitchen_speaker"
 async def app_url(socket_enabled: None) -> AsyncIterator[str]:
     if not APP_PYTHON.exists() or not (MODEL_DIR / "wespeaker_en_voxceleb_resnet34_LM.onnx").exists():
         pytest.skip("needs app/.venv and the model: (cd app && uv sync) && python3 -I app/fetch_model.py models")
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = s.getsockname()[1]
+    port = unused_port()
     env = {**os.environ, "HOST": "127.0.0.1", "PORT": str(port), "MODEL_DIR": str(MODEL_DIR)}
     server = subprocess.Popen([APP_PYTHON, "-I", ROOT / "app" / "server.py"], env=env)
     url = f"http://127.0.0.1:{port}"
@@ -60,26 +57,23 @@ async def app_url(socket_enabled: None) -> AsyncIterator[str]:
 
 
 async def flow(hass: HomeAssistant, url: str) -> None:
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await start_flow(hass)
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"], {CONF_URL: url, CONF_SATELLITES: [KITCHEN]}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY, result.get("errors")
     entry = hass.config_entries.async_entries(DOMAIN)[0]
     for speaker in ({CONF_NAME: "Alice", CONF_PERSON: "person.alice"}, {CONF_NAME: "Bob"}):
-        result = await hass.config_entries.subentries.async_init(
-            (entry.entry_id, "speaker"), context={"source": SOURCE_USER}
-        )
-        result = await hass.config_entries.subentries.async_configure(result["flow_id"], speaker)
+        result = await add_speaker(hass, entry, speaker)
         assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
 
 
-async def enroll(hass: HomeAssistant, satellite: FakeSatellite, switch: str, who: tuple) -> None:
-    await hass.services.async_call("switch", "turn_on", {"entity_id": switch}, blocking=True)
+async def enroll(hass: HomeAssistant, satellite: FakeSatellite, enrollment: str, who: tuple) -> None:
+    await switch(hass, enrollment, True)
     for seed in range(1, 5):
         await utter(hass, satellite, voice(*who, seed=seed))
-    await hass.services.async_call("switch", "turn_off", {"entity_id": switch}, blocking=True)
+    await switch(hass, enrollment, False)
 
 
 async def test_two_enrolled_voices_are_told_apart_through_the_real_app(

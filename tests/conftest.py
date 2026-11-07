@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 from homeassistant.components.assist_pipeline import async_get_pipeline, async_update_pipeline
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
-from homeassistant.const import Platform
+from homeassistant.const import CONF_URL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 import pytest
@@ -21,7 +21,7 @@ from pytest_homeassistant.common import (
 )
 from pytest_homeassistant.test_util.aiohttp import AiohttpClientMocker
 
-from custom_components.voxprint.const import CONF_SATELLITES, CONF_THRESHOLD, CONF_URL, DOMAIN
+from custom_components.voxprint.const import CONF_SATELLITES, CONF_THRESHOLD, DOMAIN
 from fakes import APP_URL, BEDROOM, KITCHEN, LOOSE, TEST_DOMAIN, FakeApp, FakeSatellite, FakeSTT, speaker
 
 

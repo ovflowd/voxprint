@@ -13,7 +13,6 @@ MODEL: Final = "wespeaker_resnet34_lm"
 STORAGE_KEY: Final = DOMAIN
 STORAGE_VERSION: Final = 1
 
-CONF_URL: Final = "url"
 CONF_SATELLITES: Final = "satellites"
 CONF_THRESHOLD: Final = "threshold"
 CONF_PERSON: Final = "person"

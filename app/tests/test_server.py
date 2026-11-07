@@ -92,10 +92,10 @@ async def test_embed_refuses_an_odd_byte_count_and_more_than_15_seconds(
     assert long.status in (400, 413)
 
 
-async def test_more_requests_than_it_queues_are_refused(aiohttp_client, monkeypatch) -> None:
+async def test_more_requests_than_it_queues_are_refused(aiohttp_client) -> None:
     class SlowModel(FakeModel):
         def embed(self, x: np.ndarray) -> np.ndarray:
-            time.sleep(0.2)
+            time.sleep(0.1)
             return super().embed(x)
 
     client = await aiohttp_client(server.make_app(server.Service(SlowModel())))
@@ -105,7 +105,7 @@ async def test_more_requests_than_it_queues_are_refused(aiohttp_client, monkeypa
     assert statuses == [200] * server.MAX_REQUESTS + [503] * 3
 
 
-async def test_requests_given_up_on_never_compute_side_by_side(aiohttp_server, aiohttp_client) -> None:
+async def test_requests_never_compute_side_by_side_even_when_clients_give_up(aiohttp_server, aiohttp_client) -> None:
     class CountingModel(FakeModel):
         def __init__(self) -> None:
             super().__init__()
@@ -116,25 +116,22 @@ async def test_requests_given_up_on_never_compute_side_by_side(aiohttp_server, a
             with self.guard:
                 self.running += 1
                 self.most = max(self.most, self.running)
-            time.sleep(0.2)
+            time.sleep(0.1)
             with self.guard:
                 self.running -= 1
             return super().embed(x)
 
     model = CountingModel()
     service = server.Service(model)
-    # The test server cancels a handler whose client went away, as the app does with handler_cancellation.
+    # The test server cancels the handler of a client that went away, which the app itself doesn't.
     app = await aiohttp_server(server.make_app(service))
     client = await aiohttp_client(app)
     body = pcm(with_silence(voice(*LOW, seconds=1.0)))
     for _ in range(4):
         with contextlib.suppress(TimeoutError):
-            await client.post("/v1/embed", data=body, timeout=ClientTimeout(total=0.05))
-    for _ in range(100):
-        if len(model.inputs) == 4 and service.requests == 0:
-            break
-        await asyncio.sleep(0.05)
-    assert len(model.inputs) == 4
+            await client.post("/v1/embed", data=body, timeout=ClientTimeout(total=0.02))
+    responses = await asyncio.gather(*(client.post("/v1/embed", data=body) for _ in range(3)))
+    assert [resp.status for resp in responses] == [200] * 3
     assert model.most == 1
     assert service.requests == 0
 

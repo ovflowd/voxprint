@@ -45,8 +45,7 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: Voxprin
             for satellite, result in recognizer.results.items()
         },
         "tee": {
-            entity_id: entity is not None and is_installed(entity)
+            entity_id: is_installed(stt.async_get_speech_to_text_entity(hass, entity_id))
             for entity_id in hass.states.async_entity_ids(stt.DOMAIN)
-            for entity in [stt.async_get_speech_to_text_entity(hass, entity_id)]
         },
     }

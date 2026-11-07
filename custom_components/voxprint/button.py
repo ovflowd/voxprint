@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from homeassistant.components.button import ButtonEntity
-from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -11,7 +10,6 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import VoxprintConfigEntry
 from .const import SUBENTRY_SPEAKER
 from .entity import SpeakerEntity
-from .recognizer import Recognizer
 
 PARALLEL_UPDATES = 0
 
@@ -25,9 +23,8 @@ async def async_setup_entry(
 
 class ResetButton(SpeakerEntity, ButtonEntity):
     _attr_entity_category = EntityCategory.CONFIG
-
-    def __init__(self, recognizer: Recognizer, subentry: ConfigSubentry) -> None:
-        super().__init__(recognizer, subentry, "reset_voiceprint")
+    _attr_translation_key = "reset_voiceprint"
+    _updates = False
 
     async def async_press(self) -> None:
         await self._recognizer.async_reset(self._speaker)

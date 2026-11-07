@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -13,7 +12,6 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import VoxprintConfigEntry
 from .const import SUBENTRY_SPEAKER
 from .entity import SpeakerEntity
-from .recognizer import Recognizer
 
 PARALLEL_UPDATES = 0
 
@@ -30,9 +28,7 @@ class EnrollmentSwitch(SpeakerEntity, SwitchEntity):
 
     # Config entities aren't exposed to voice assistants by default: nobody can enroll by asking for it.
     _attr_entity_category = EntityCategory.CONFIG
-
-    def __init__(self, recognizer: Recognizer, subentry: ConfigSubentry) -> None:
-        super().__init__(recognizer, subentry, "enrollment")
+    _attr_translation_key = "enrollment"
 
     @property
     def is_on(self) -> bool:

@@ -36,8 +36,8 @@ MAX_BODY = 15 * SR * 2
 MIN_EMBED_S = 0.3
 # Longer speech adds latency, not accuracy.
 MAX_VOICED_S = 6.0
-# Requests in the app at once, the one being embedded included, until their embedding is done. More are
-# refused, so a flood can't pile up audio in RAM.
+# Requests in the app at once, the one being embedded included. More are refused, so a flood can't pile up
+# audio in RAM.
 MAX_REQUESTS = 5
 FRAME, HOP = 400, 160
 OPTIONS_FILE = Path("/data/options.json")
@@ -90,9 +90,8 @@ def voiced(x: np.ndarray) -> np.ndarray:
     """Keep the 25 ms frames that are more than 10 dB above the clip's noise floor."""
     if len(x) < FRAME:
         return x[:0]
-    n = 1 + (len(x) - FRAME) // HOP
-    idx = HOP * np.arange(n)[:, None] + np.arange(FRAME)[None, :]
-    db = 10 * np.log10(np.mean(x[idx] ** 2, axis=1) + 1e-10)
+    frames = np.lib.stride_tricks.sliding_window_view(x, FRAME)[::HOP]
+    db = 10 * np.log10(np.mean(frames**2, axis=1) + 1e-10)
     floor = float(np.percentile(db, 10))
     starts = HOP * np.flatnonzero((db > floor + 10.0) & (db > -50.0))
     edges = np.zeros(len(x) + 1, dtype=np.int32)
@@ -133,21 +132,14 @@ class Service:
             pcm = await request.read()
             if len(pcm) % 2 or len(pcm) > MAX_BODY:
                 raise web.HTTPBadRequest(text="expected s16le mono 16 kHz, at most 15 s")
-        except BaseException:
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(self.executor, self.compute, pcm)
+        finally:
             self.requests -= 1
-            raise
-        job = asyncio.get_running_loop().run_in_executor(self.executor, self.compute, pcm)
-        job.add_done_callback(self._finished)
-        # A request the client gave up on still holds its place until its embedding is done, so the next one
-        # can't start a second computation beside it.
-        result = await asyncio.shield(job)
         _LOGGER.debug(
             "%.2f s audio, %.2f s speech, %s ms", result["total_s"], result["voiced_s"], result.get("ms", "-")
         )
         return web.json_response(result)
-
-    def _finished(self, _job: asyncio.Future[dict]) -> None:
-        self.requests -= 1
 
     async def handle_health(self, _request: web.Request) -> web.Response:
         return web.json_response({"ok": True, "api": API_VERSION, "model": MODEL_ID, "version": __version__})
@@ -181,8 +173,6 @@ def main() -> None:
         port=int(os.environ.get("PORT", "10340")),
         access_log=None,
         print=None,
-        # Stop handling a request the integration gave up on.
-        handler_cancellation=True,
     )
 
 

@@ -13,12 +13,9 @@ from pathlib import Path
 import sys
 import urllib.request
 
-# The release tag's spelling is upstream's.
-URL = (
-    "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/"
-    "wespeaker_en_voxceleb_resnet34_LM.onnx"
-)
 NAME = "wespeaker_en_voxceleb_resnet34_LM.onnx"
+# The release tag's spelling is upstream's.
+URL = f"https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/{NAME}"
 SHA256 = "e9848563da86f263117134dfd7ad63c92355b37de492b55e325400c9d9c39012"
 
 

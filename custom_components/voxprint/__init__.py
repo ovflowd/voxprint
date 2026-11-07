@@ -10,14 +10,14 @@ from __future__ import annotations
 from functools import partial
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
+from homeassistant.const import CONF_URL, Platform
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_entity_registry_updated_event
 
 from .client import AppClient
-from .const import CONF_SATELLITES, CONF_THRESHOLD, CONF_URL, DEFAULT_THRESHOLD, SUBENTRY_SPEAKER
+from .const import CONF_SATELLITES, CONF_THRESHOLD, SUBENTRY_SPEAKER
 from .recognizer import Recognizer, voiceprint_store
 
 PLATFORMS = [Platform.BUTTON, Platform.SENSOR, Platform.SWITCH]
@@ -32,7 +32,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: VoxprintConfigEntry) -> 
         AppClient(async_get_clientsession(hass), entry.data[CONF_URL]),
         satellites=entry.options[CONF_SATELLITES],
         speakers=[subentry.subentry_id for subentry in entry.get_subentries_of_type(SUBENTRY_SPEAKER)],
-        threshold=entry.options.get(CONF_THRESHOLD, DEFAULT_THRESHOLD),
+        threshold=entry.options[CONF_THRESHOLD],
     )
     entry.async_on_unload(recognizer.async_stop)
     await recognizer.async_start()
@@ -65,7 +65,7 @@ async def _async_reload(hass: HomeAssistant, entry: VoxprintConfigEntry) -> None
 
 async def async_unload_entry(hass: HomeAssistant, entry: VoxprintConfigEntry) -> None:
     # Stopped first, so a score landing while the platforms unload can't save a voiceprint.
-    await entry.runtime_data.async_stop()
+    entry.runtime_data.async_stop()
     await hass.config_entries.async_unload_platforms_or_raise(entry, PLATFORMS)
 
 

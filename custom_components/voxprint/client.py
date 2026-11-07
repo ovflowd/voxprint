@@ -21,7 +21,7 @@ class AppError(Exception):
 class AppClient:
     def __init__(self, session: aiohttp.ClientSession, url: str) -> None:
         self._session = session
-        self.url = url.rstrip("/")
+        self._url = url
 
     async def health(self) -> dict[str, Any]:
         """The app's /health reply, checked for this integration's API version and model."""
@@ -43,7 +43,7 @@ class AppClient:
     async def _request(self, method: str, path: str, timeout: float, **kwargs: Any) -> dict[str, Any]:
         try:
             async with asyncio.timeout(timeout):
-                async with self._session.request(method, f"{self.url}{path}", **kwargs) as resp:
+                async with self._session.request(method, f"{self._url}{path}", **kwargs) as resp:
                     resp.raise_for_status()
                     body = await resp.json()
         except TimeoutError as err:
