@@ -3,7 +3,8 @@
 ## Speaker, one per satellite
 
 `sensor.<satellite>_speaker` sits on the satellite's own device page. If a satellite has no device,
-the sensor is named after the satellite instead.
+the sensor is named after the satellite instead. Home Assistant 2026.11 puts the device's area in new
+entity IDs, so it may arrive as `sensor.<area>_<satellite>_speaker`; rename it if you prefer.
 
 | | |
 |---|---|
