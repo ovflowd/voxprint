@@ -1,6 +1,6 @@
 # https://contributors.home-assistant.io/apps/reference/configuration/
 name: Voxprint
-version: "0.1.0"
+version: "0.1.1"
 slug: voxprint
 description: Turns one utterance into a speaker embedding for the Voxprint integration. Keeps nothing.
 url: https://github.com/ovflowd/voxprint

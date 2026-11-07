@@ -39,7 +39,7 @@ private requests are offered to the phone. That is the same failure mode as an e
 
 1. **Install the app.** Settings → Apps → App store → ⋮ → Repositories, add
    `https://github.com/ovflowd/voxprint`, install **Voxprint**, turn on *Watchdog*, start it. The log
-   ends with `Voxprint app 0.1.0, model wespeaker_resnet34_lm, self-test norm 1.0`. Leave the
+   ends with `Voxprint app <version>, model wespeaker_resnet34_lm, self-test norm 1.0`. Leave the
    prototype's app running for now.
 2. **Download the integration.** Marketplace → ⋮ → Custom repositories, add the same URL as an
    *Integration*, download **Voxprint**. Don't restart yet.

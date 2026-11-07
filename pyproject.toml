@@ -1,6 +1,6 @@
 [project]
 name = "voxprint"
-version = "0.1.0"
+version = "0.1.1"
 description = "Speaker recognition for Home Assistant Assist: tells which enrolled person spoke to a voice satellite, locally"
 readme = "README.md"
 license = "MIT"

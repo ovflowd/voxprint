@@ -1,6 +1,6 @@
 [project]
 name = "voxprint-app"
-version = "0.1.0"
+version = "0.1.1"
 description = "The Voxprint app: turns one utterance into a speaker embedding, keeping nothing"
 readme = "README.md"
 license = "MIT"

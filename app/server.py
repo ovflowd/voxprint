@@ -23,7 +23,7 @@ import kaldi_native_fbank as knf
 import numpy as np
 import onnxruntime as ort
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 API_VERSION = 1
 MODEL_ID = "wespeaker_resnet34_lm"

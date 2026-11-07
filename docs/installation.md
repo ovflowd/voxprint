@@ -10,7 +10,7 @@ container uses.
 1. **Add the repository to the app store.** Settings → Apps → App store → ⋮ → Repositories, and add
    `https://github.com/ovflowd/voxprint`.
 2. **Install the app.** Find **Voxprint** in the store, install it, turn on *Watchdog* and start it.
-   Its log should end with `Voxprint app 0.1.0, model wespeaker_resnet34_lm, self-test norm 1.0`.
+   Its log should end with `Voxprint app <version>, model wespeaker_resnet34_lm, self-test norm 1.0`.
    The image is about 450 MB, prebuilt for amd64 and aarch64.
 3. **Install the integration.** In the Marketplace (HACS), ⋮ → Custom repositories, add the same URL
    with the type *Integration*, open **Voxprint** and download it. Restart Home Assistant: a new
@@ -27,7 +27,7 @@ Then add speakers and enroll them: [enrollment.md](enrollment.md).
 There is no app store, so run the app's image yourself, next to Home Assistant:
 
 ```bash
-docker run -d --name voxprint --restart unless-stopped -p 127.0.0.1:10340:10340 ghcr.io/ovflowd/voxprint:0.1.0
+docker run -d --name voxprint --restart unless-stopped -p 127.0.0.1:10340:10340 ghcr.io/ovflowd/voxprint:0.1.1
 ```
 
 Use `http://localhost:10340` as the app URL when Home Assistant runs on the same host with host

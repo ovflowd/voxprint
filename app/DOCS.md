@@ -7,7 +7,7 @@ each utterance from your satellites and compares the embeddings with the voicepr
 ## Setup
 
 1. Start the app, with *Watchdog* on. Its log should end with
-   `Voxprint app 0.1.0, model wespeaker_resnet34_lm, self-test norm 1.0`.
+   `Voxprint app <version>, model wespeaker_resnet34_lm, self-test norm 1.0`.
 2. Install the Voxprint integration from the Marketplace (HACS) and restart Home Assistant.
 3. Add the integration under Settings → Devices & services. It finds this app's address by itself:
    `http://<hostname>:10340`, with the hostname shown on this app's info page.
