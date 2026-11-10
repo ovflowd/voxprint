@@ -28,13 +28,22 @@ updates:
       interval: weekly
     open-pull-requests-limit: 3
     groups:
-      dev:
-        dependency-type: development
+      app:
+        patterns:
+          - "*"
   - package-ecosystem: docker
     directory: /app
     schedule:
       interval: weekly
+    groups:
+      images:
+        patterns:
+          - "*"
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns:
+          - "*"
