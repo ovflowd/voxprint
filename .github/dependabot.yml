@@ -4,6 +4,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 3
     groups:
       # Everything here is for development, and pytest-homeassistant pins Home Assistant itself, so one
@@ -26,6 +28,8 @@ updates:
     directory: /app
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
     open-pull-requests-limit: 3
     groups:
       app:
@@ -35,6 +39,8 @@ updates:
     directory: /app
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
     groups:
       images:
         patterns:
@@ -43,6 +49,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 3
     groups:
       actions:
         patterns:
