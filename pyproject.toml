@@ -15,7 +15,7 @@ Repository = "https://github.com/ovflowd/voxprint"
 [dependency-groups]
 dev = [
     "pytest-cov>=7",
-    "pytest-homeassistant==2026.11.0",
+    "pytest-homeassistant==2026.11.1",
     "ruff>=0.15",
     # Requirements of the Assist pipeline and hassio integrations at Home Assistant 2026.11.0, for the tests.
     # Update them with pytest-homeassistant, to the versions in that Home Assistant's manifests.
